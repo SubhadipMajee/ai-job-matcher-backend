@@ -4,7 +4,7 @@ import shutil, os, json
 
 from src.resume_parser import extract_text_from_pdf
 from src.job_scraper import fetch_jobs
-from src.skill_extractor import extract_skills, ats_score
+from src.skill_extractor import extract_skills, ats_score, skill_roadmap
 from src.matcher import match_skills
 from src.resume_optimizer import optimize_resume
 from src.email_generator import generate_email
@@ -26,10 +26,6 @@ async def parse_resume(file: UploadFile = File(...)):
     skills = extract_skills(text, "resume")
     return {"resume_text": text, "resume_skills": skills}
 
-# @app.post("/fetch-jobs")
-# async def get_jobs(job_role: str = Form(...)):
-#     jobs = fetch_jobs(job_role)
-#     return {"jobs": jobs}
 @app.post("/fetch-jobs")
 async def get_jobs(
     job_role: str = Form(...),
@@ -63,8 +59,6 @@ async def get_email(resume_text: str = Form(...), job_title: str = Form(...), co
 async def get_ats(resume_text: str = Form(...), job_description: str = Form(...)):
     result = ats_score(resume_text, job_description)
     return result
-
-    from src.skill_extractor import extract_skills, ats_score, skill_roadmap
 
 @app.post("/skill-roadmap")
 async def get_roadmap(missing_skills: str = Form(...)):
