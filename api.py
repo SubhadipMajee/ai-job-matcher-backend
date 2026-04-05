@@ -26,9 +26,17 @@ async def parse_resume(file: UploadFile = File(...)):
     skills = extract_skills(text, "resume")
     return {"resume_text": text, "resume_skills": skills}
 
+# @app.post("/fetch-jobs")
+# async def get_jobs(job_role: str = Form(...)):
+#     jobs = fetch_jobs(job_role)
+#     return {"jobs": jobs}
 @app.post("/fetch-jobs")
-async def get_jobs(job_role: str = Form(...)):
-    jobs = fetch_jobs(job_role)
+async def get_jobs(
+    job_role: str = Form(...),
+    location: str = Form(""),
+    job_type: str = Form("")
+):
+    jobs = fetch_jobs(job_role, location, job_type)
     return {"jobs": jobs}
 
 @app.post("/match")
