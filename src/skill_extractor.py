@@ -57,3 +57,31 @@ Resume:
         return eval(raw)
     except:
         return None
+
+        def skill_roadmap(missing_skills):
+    time.sleep(1)
+    prompt = f"""
+For each of the following missing skills, provide a learning roadmap.
+Return ONLY a JSON array with this exact structure, no explanation, no markdown:
+[
+  {{
+    "skill": "skill name",
+    "level": "Beginner/Intermediate/Advanced",
+    "time": "estimated time to learn",
+    "resources": [
+      {{"name": "resource name", "url": "https://...", "type": "Free/Paid"}}
+    ]
+  }}
+]
+
+Missing Skills: {", ".join(missing_skills)}
+"""
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role": "user", "content": prompt}]
+    )
+    raw = response.choices[0].message.content.strip()
+    try:
+        return eval(raw)
+    except:
+        return []

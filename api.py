@@ -63,3 +63,11 @@ async def get_email(resume_text: str = Form(...), job_title: str = Form(...), co
 async def get_ats(resume_text: str = Form(...), job_description: str = Form(...)):
     result = ats_score(resume_text, job_description)
     return result
+
+    from src.skill_extractor import extract_skills, ats_score, skill_roadmap
+
+@app.post("/skill-roadmap")
+async def get_roadmap(missing_skills: str = Form(...)):
+    skills = json.loads(missing_skills)
+    result = skill_roadmap(skills)
+    return {"roadmap": result}
