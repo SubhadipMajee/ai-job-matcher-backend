@@ -29,7 +29,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-def fetch_jobs(job_role, location="", job_type="", num_results=10):
+def fetch_jobs(job_role, location="", job_type="", company_type="", num_results=10):
     url = "https://jsearch.p.rapidapi.com/search"
     headers = {
         "X-RapidAPI-Key": os.getenv("JSEARCH_API_KEY"),
@@ -37,6 +37,8 @@ def fetch_jobs(job_role, location="", job_type="", num_results=10):
     }
     
     query = job_role
+    if company_type:
+        query += f" at {company_type} company"
     if location:
         query += f" in {location}"
 

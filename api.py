@@ -30,9 +30,10 @@ async def parse_resume(file: UploadFile = File(...)):
 async def get_jobs(
     job_role: str = Form(...),
     location: str = Form(""),
-    job_type: str = Form("")
+    job_type: str = Form(""),
+    company_type: str = Form("")
 ):
-    jobs = fetch_jobs(job_role, location, job_type)
+    jobs = fetch_jobs(job_role, location, job_type, company_type)
     return {"jobs": jobs}
 
 @app.post("/match")
