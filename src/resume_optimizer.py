@@ -25,8 +25,7 @@ Return the improved resume text only, no explanation.
     return response.choices[0].message.content.strip()
 
 
-
-    def tailor_resume(resume_text, job_description):
+def tailor_resume(resume_text, job_description):
     prompt = f"""
 You are an expert resume writer and career coach.
 Your task is to tailor the resume below specifically for the job description provided.

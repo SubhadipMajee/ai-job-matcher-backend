@@ -6,7 +6,7 @@ from src.resume_parser import extract_text_from_pdf
 from src.job_scraper import fetch_jobs
 from src.skill_extractor import extract_skills, ats_score, skill_roadmap
 from src.matcher import match_skills
-from src.resume_optimizer import optimize_resume
+from src.resume_optimizer import optimize_resume, tailor_resume
 from src.email_generator import generate_email
 
 app = FastAPI()
@@ -67,11 +67,10 @@ async def get_roadmap(missing_skills: str = Form(...)):
     result = skill_roadmap(skills)
     return {"roadmap": result}
 
-    @app.post("/tailor-resume")
+@app.post("/tailor-resume")
 async def tailor_resume_endpoint(
     resume_text: str = Form(...),
     job_description: str = Form(...)
 ):
-    from src.resume_optimizer import tailor_resume
     result = tailor_resume(resume_text, job_description)
     return {"tailored_resume": result}
