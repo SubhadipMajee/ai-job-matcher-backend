@@ -66,3 +66,12 @@ async def get_roadmap(missing_skills: str = Form(...)):
     skills = json.loads(missing_skills)
     result = skill_roadmap(skills)
     return {"roadmap": result}
+
+    @app.post("/tailor-resume")
+async def tailor_resume_endpoint(
+    resume_text: str = Form(...),
+    job_description: str = Form(...)
+):
+    from src.resume_optimizer import tailor_resume
+    result = tailor_resume(resume_text, job_description)
+    return {"tailored_resume": result}
