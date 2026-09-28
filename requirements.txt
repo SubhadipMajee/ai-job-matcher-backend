@@ -7,3 +7,4 @@ python-dotenv
 groq
 supabase
 resend
+python-jose[cryptography]

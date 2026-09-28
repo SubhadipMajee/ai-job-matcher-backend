@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Form, Header, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, Header, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import shutil, os, json
@@ -12,6 +12,12 @@ from src.email_generator import generate_email
 from src.digest import get_matched_jobs
 from src.supabase_client import get_active_settings, get_sent_job_ids, insert_sent_jobs
 from src.digest_emailer import send_digest_email
+from src.auth import get_current_user
+from src.user_store import (
+    save_resume, get_resume,
+    save_search, get_searches, delete_search,
+    save_job, get_saved_jobs, delete_saved_job,
+)
 
 app = FastAPI()
 
@@ -140,3 +146,104 @@ async def run_digest(x_digest_secret: str = Header(default="")):
         "emails_sent":        emails_sent,
         "errors":             errors,
     })
+
+
+# ── Feature 1: Auth & Persistence ────────────────────────────────────────────
+#
+# All endpoints here require a valid Supabase JWT in the Authorization header.
+# The frontend obtains the token via supabase.auth.signInWithPassword() and
+# attaches it as:  Authorization: Bearer <access_token>
+#
+# Sign-up and login are handled entirely by the Supabase JS client on the
+# frontend — no backend endpoints needed for those operations.
+
+
+# ── Resume ───────────────────────────────────────────────────────────────────
+
+@app.post("/resume/save")
+async def save_resume_endpoint(
+    resume_text: str = Form(...),
+    resume_skills: str = Form(...),          # JSON-encoded list of strings
+    user: dict = Depends(get_current_user),
+):
+    """
+    Persist the user's parsed resume text and extracted skills.
+    Call this right after /parse-resume succeeds on the frontend.
+    """
+    skills = json.loads(resume_skills)
+    save_resume(user["sub"], resume_text, skills)
+    return {"status": "saved"}
+
+
+@app.get("/resume")
+async def get_resume_endpoint(user: dict = Depends(get_current_user)):
+    """
+    Fetch the user's previously saved resume.
+    Returns null fields if they haven't saved one yet.
+    """
+    data = get_resume(user["sub"])
+    if not data:
+        return {"resume_text": None, "resume_skills": [], "updated_at": None}
+    return data
+
+
+# ── Saved searches ────────────────────────────────────────────────────────────
+
+@app.post("/searches/save")
+async def save_search_endpoint(
+    job_query: str = Form(...),
+    location:  str = Form(""),
+    user: dict = Depends(get_current_user),
+):
+    """Save a job search query so the user can re-run it later."""
+    row = save_search(user["sub"], job_query, location)
+    return row
+
+
+@app.get("/searches")
+async def list_searches_endpoint(user: dict = Depends(get_current_user)):
+    """Return all saved searches for the logged-in user, newest first."""
+    return {"searches": get_searches(user["sub"])}
+
+
+@app.delete("/searches/{search_id}")
+async def delete_search_endpoint(
+    search_id: str,
+    user: dict = Depends(get_current_user),
+):
+    """Delete a saved search (only succeeds if it belongs to this user)."""
+    delete_search(user["sub"], search_id)
+    return {"status": "deleted"}
+
+
+# ── Saved (bookmarked) jobs ───────────────────────────────────────────────────
+
+@app.post("/jobs/save")
+async def save_job_endpoint(
+    job_data: str = Form(...),               # full job dict, JSON-encoded
+    user: dict = Depends(get_current_user),
+):
+    """
+    Bookmark a job listing.
+    job_data should be the JSON-stringified job object from /fetch-jobs,
+    including at minimum: job_id, title, company, link, location, score.
+    """
+    job = json.loads(job_data)
+    row = save_job(user["sub"], job)
+    return row
+
+
+@app.get("/jobs/saved")
+async def list_saved_jobs_endpoint(user: dict = Depends(get_current_user)):
+    """Return all bookmarked jobs for the logged-in user, newest first."""
+    return {"jobs": get_saved_jobs(user["sub"])}
+
+
+@app.delete("/jobs/saved/{job_id}")
+async def delete_saved_job_endpoint(
+    job_id: str,
+    user: dict = Depends(get_current_user),
+):
+    """Remove a bookmarked job (only succeeds if it belongs to this user)."""
+    delete_saved_job(user["sub"], job_id)
+    return {"status": "deleted"}
