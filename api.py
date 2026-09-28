@@ -1,6 +1,9 @@
-from fastapi import FastAPI, UploadFile, File, Form, Header, HTTPException, Depends
+from fastapi import FastAPI, UploadFile, File, Form, Header, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 import shutil, os, json
 
 from src.resume_parser import extract_text_from_pdf
@@ -25,8 +28,13 @@ from src.tracker_store import (
 from src.diff_engine import compute_diff, diff_summary
 from src.semantic_matcher import match_skills_semantic
 from src.interview_prep import generate_interview_prep
+from src.assisted_apply import generate_apply_pack
+from src.cache import get_cache_info, clear_job_cache
 
-app = FastAPI()
+limiter = Limiter(key_func=get_remote_address)
+app = FastAPI(title="AI Job Matcher API", version="2.0.0")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -395,4 +403,47 @@ async def get_interview_prep(
     and gap mitigation strategies tailored to the candidate's resume and job requirements.
     """
     result = generate_interview_prep(resume_text, job_description)
-    return result
+    return result
+
+
+# ── Feature 5: Cache Management ──────────────────────────────────────────────
+
+@app.get("/cache/info")
+async def cache_info():
+    """Return in-memory JSearch cache stats."""
+    return get_cache_info()
+
+
+@app.post("/cache/clear")
+async def cache_clear():
+    """Clear in-memory cache to force fresh JSearch lookups."""
+    clear_job_cache()
+    return {"status": "cache cleared"}
+
+
+# ── Feature 6: Assisted Apply ────────────────────────────────────────────────
+
+@app.post("/apply-pack")
+async def get_apply_pack(
+    resume_text: str = Form(...),
+    job_title: str = Form(...),
+    company: str = Form(...),
+    job_description: str = Form(...),
+    link: str = Form(""),
+):
+    """
+    Generate an Assisted Apply Pack for the candidate:
+      - Tailored resume highlighting relevant skills and keywords
+      - Customized cover/application email
+      - Direct apply link
+      - Pre-application verification checklist
+    """
+    pack = generate_apply_pack(
+        resume_text=resume_text,
+        job_title=job_title,
+        company=company,
+        job_description=job_description,
+        link=link,
+    )
+    return pack
+

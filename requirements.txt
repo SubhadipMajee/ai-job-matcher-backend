@@ -9,3 +9,5 @@ supabase
 resend
 python-jose[cryptography]
 httpx
+cachetools
+slowapi

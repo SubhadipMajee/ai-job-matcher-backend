@@ -26,10 +26,16 @@
 import requests
 import os
 from dotenv import load_dotenv
+from src.cache import get_cached_jobs, set_cached_jobs, make_job_cache_key
 
 load_dotenv()
 
 def fetch_jobs(job_role, location="", job_type="", company_type="", num_results=10):
+    cache_key = make_job_cache_key(job_role, location, job_type, company_type, num_results)
+    cached = get_cached_jobs(cache_key)
+    if cached is not None:
+        return cached
+
     url = "https://jsearch.p.rapidapi.com/search"
     headers = {
         "X-RapidAPI-Key": os.getenv("JSEARCH_API_KEY"),
@@ -64,4 +70,6 @@ def fetch_jobs(job_role, location="", job_type="", company_type="", num_results=
             "location": job.get("job_city", "") + ", " + job.get("job_country", ""),
             "job_type": job.get("job_employment_type", "")
         })
+    
+    set_cached_jobs(cache_key, jobs)
     return jobs
