@@ -18,6 +18,10 @@ from src.user_store import (
     save_search, get_searches, delete_search,
     save_job, get_saved_jobs, delete_saved_job,
 )
+from src.tracker_store import (
+    create_application, get_applications,
+    update_application, delete_application,
+)
 
 app = FastAPI()
 
@@ -246,4 +250,98 @@ async def delete_saved_job_endpoint(
 ):
     """Remove a bookmarked job (only succeeds if it belongs to this user)."""
     delete_saved_job(user["sub"], job_id)
+    return {"status": "deleted"}
+
+
+# ── Feature 3: Application Tracker ───────────────────────────────────────────
+#
+# Kanban stages in order: saved → applied → interview → offer / rejected
+#
+# The frontend groups GET /tracker results by the 'stage' field to render
+# each kanban column. Moving a card = PATCH /tracker/{id} with { stage: "..." }
+
+from pydantic import BaseModel
+
+class ApplicationIn(BaseModel):
+    """Body for POST /tracker — add a job to the kanban board."""
+    job_id:     str
+    title:      str
+    company:    str
+    link:       str = ""
+    stage:      str = "saved"
+    notes:      str = ""
+    applied_at: str | None = None   # ISO date string e.g. "2024-03-15"
+
+
+class ApplicationUpdate(BaseModel):
+    """
+    Body for PATCH /tracker/{id} — all fields optional.
+    Send only the fields you want to change.
+    """
+    stage:      str | None = None
+    notes:      str | None = None
+    applied_at: str | None = None
+
+
+@app.post("/tracker")
+async def add_to_tracker(
+    body: ApplicationIn,
+    user: dict = Depends(get_current_user),
+):
+    """
+    Add a job to the application tracker.
+    Calling this twice with the same job_id is safe (upsert, no duplicate).
+    """
+    entry = create_application(
+        user_id    = user["sub"],
+        job_id     = body.job_id,
+        title      = body.title,
+        company    = body.company,
+        link       = body.link,
+        stage      = body.stage,
+        notes      = body.notes,
+        applied_at = body.applied_at,
+    )
+    return entry
+
+
+@app.get("/tracker")
+async def list_tracker(user: dict = Depends(get_current_user)):
+    """
+    Return all tracker entries for the logged-in user, sorted by most recently
+    updated. The frontend groups them by 'stage' for the kanban columns.
+    """
+    entries = get_applications(user["sub"])
+    return {"applications": entries}
+
+
+@app.patch("/tracker/{application_id}")
+async def update_tracker(
+    application_id: str,
+    body: ApplicationUpdate,
+    user: dict = Depends(get_current_user),
+):
+    """
+    Update stage, notes, or applied_at on a tracker entry.
+    Used when the user drags a card to a new column or edits notes.
+    Only sends the fields that are actually provided (not None).
+    """
+    # Build a dict of only the non-None fields the caller sent
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not updates:
+        return {"detail": "Nothing to update"}
+
+    entry = update_application(user["sub"], application_id, updates)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Application not found")
+    return entry
+
+
+@app.delete("/tracker/{application_id}")
+async def delete_tracker(
+    application_id: str,
+    user: dict = Depends(get_current_user),
+):
+    """Remove an entry from the tracker."""
+    delete_application(user["sub"], application_id)
     return {"status": "deleted"}
