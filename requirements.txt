@@ -5,3 +5,5 @@ pdfplumber
 requests
 python-dotenv
 groq
+supabase
+resend

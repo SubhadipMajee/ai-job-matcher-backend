@@ -1,0 +1,50 @@
+name: Daily Job Digest
+
+on:
+  # Run every day at 07:00 UTC (12:30 PM IST)
+  schedule:
+    - cron: "0 7 * * *"
+
+  # Also allow manual trigger from the GitHub Actions UI
+  workflow_dispatch:
+
+jobs:
+  send-digest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Wake up Render (free tier spins down after inactivity)
+        # Render free instances sleep after 15 min of no traffic.
+        # We hit the root URL first and wait 60 s to give it time to boot.
+        run: |
+          echo "Pinging Render to wake up the instance..."
+          curl --silent --max-time 30 "${{ secrets.RENDER_URL }}" || true
+          echo "Waiting 60 seconds for the instance to fully start..."
+          sleep 60
+
+      - name: Trigger daily digest
+        # POST to /run-digest with a retry in case the first attempt
+        # catches the tail end of the boot sequence.
+        run: |
+          STATUS=$(curl \
+            --silent \
+            --output /tmp/response.json \
+            --write-out "%{http_code}" \
+            --max-time 300 \
+            --retry 2 \
+            --retry-delay 15 \
+            --request POST \
+            --header "X-Digest-Secret: ${{ secrets.DIGEST_SECRET }}" \
+            "${{ secrets.RENDER_URL }}/run-digest")
+
+          echo "HTTP status: $STATUS"
+          echo "Response:"
+          cat /tmp/response.json
+
+          # Fail the workflow if the endpoint returned an error status
+          if [ "$STATUS" -lt 200 ] || [ "$STATUS" -ge 300 ]; then
+            echo "❌ /run-digest returned HTTP $STATUS"
+            exit 1
+          fi
+
+          echo "✅ Digest triggered successfully"
