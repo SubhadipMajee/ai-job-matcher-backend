@@ -8,3 +8,4 @@ groq
 supabase
 resend
 python-jose[cryptography]
+httpx

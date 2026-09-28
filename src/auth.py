@@ -1,24 +1,25 @@
 """
 auth.py — FastAPI dependency that verifies Supabase-issued JWTs.
 
-How it works:
-  1. The frontend logs in via the Supabase JS client (supabase.auth.signIn*).
-     Supabase returns an access_token (a JWT signed with your project's JWT secret).
-  2. The frontend attaches that token to every API request:
-         Authorization: Bearer <access_token>
-  3. This dependency decodes and verifies the token.
-     If it's valid, the route gets a `user` dict containing at least:
-         { "sub": "<user_uuid>", "email": "...", ... }
-     If it's missing or invalid, FastAPI returns 401 automatically.
+Supabase now signs tokens with ECC (P-256) / ES256 by default.
+We verify tokens using Supabase's public JWKS endpoint so we never
+need to store a private key ourselves.
 
-We never handle passwords here — Supabase Auth owns that entirely.
+How it works:
+  1. Frontend signs in via supabase.auth.signIn*() → gets an access_token (JWT).
+  2. Frontend sends: Authorization: Bearer <access_token>
+  3. This dependency fetches Supabase's public JWKS (cached after first call),
+     finds the key matching the token's "kid" header, and verifies the signature.
+  4. Returns the decoded payload { "sub": "<user_uuid>", "email": "...", ... }
+     or raises HTTP 401.
 
 Required env var:
-  SUPABASE_JWT_SECRET — found in Supabase dashboard →
-                        Project Settings → API → JWT Settings → JWT Secret
+  SUPABASE_URL — your project URL, e.g. https://xxxxx.supabase.co
 """
 
 import os
+import httpx
+from functools import lru_cache
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
@@ -26,10 +27,47 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# HTTPBearer extracts the token from the "Authorization: Bearer ..." header.
-# auto_error=False means we get None instead of a 403 when the header is absent,
-# so we can return a cleaner 401 ourselves.
+# HTTPBearer extracts "Authorization: Bearer <token>" from the request header.
+# auto_error=False lets us return a clean 401 instead of FastAPI's default 403.
 _bearer = HTTPBearer(auto_error=False)
+
+
+@lru_cache(maxsize=1)
+def _get_jwks() -> dict:
+    """
+    Fetch Supabase's public JSON Web Key Set (JWKS) and cache it in memory.
+
+    lru_cache(maxsize=1) means this HTTP call only happens once per server
+    process lifetime. If Supabase ever rotates keys, restart the server.
+
+    The JWKS contains the public key(s) Supabase uses to sign JWTs.
+    We use the public key to VERIFY tokens — we never see the private key.
+    """
+    supabase_url = os.getenv("SUPABASE_URL", "").rstrip("/")
+    if not supabase_url:
+        raise RuntimeError("SUPABASE_URL environment variable is not set")
+
+    jwks_url = f"{supabase_url}/auth/v1/.well-known/jwks.json"
+    response = httpx.get(jwks_url, timeout=10)
+    response.raise_for_status()
+    return response.json()
+
+
+def _find_key(jwks: dict, kid: str) -> dict:
+    """
+    Find the public key in the JWKS that matches the token's 'kid' header.
+
+    Each token's header contains 'kid' (key ID) so the verifier knows
+    which key was used to sign it.
+    """
+    for key in jwks.get("keys", []):
+        if key.get("kid") == kid:
+            return key
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail=f"No matching public key found for kid={kid!r}. "
+               "Try restarting the server if Supabase recently rotated keys.",
+    )
 
 
 def get_current_user(
@@ -38,29 +76,37 @@ def get_current_user(
     """
     FastAPI dependency — use with `user = Depends(get_current_user)`.
 
-    Returns the decoded JWT payload dict on success.
-    Raises HTTP 401 on any auth failure.
+    Returns the decoded JWT payload on success (contains at minimum 'sub',
+    the user's UUID, and 'email').
+    Raises HTTP 401 on any failure.
     """
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authorization header missing",
+            detail="Authorization header missing. "
+                   "Add 'Authorization: Bearer <your_supabase_access_token>'",
         )
 
-    jwt_secret = os.getenv("SUPABASE_JWT_SECRET")
-    if not jwt_secret:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Server auth is not configured (SUPABASE_JWT_SECRET missing)",
-        )
+    token = credentials.credentials
 
     try:
-        # Supabase signs tokens with HS256.
-        # audience="authenticated" is the claim Supabase sets for logged-in users.
+        # Step 1: read the header without verifying — just to extract 'kid'
+        unverified_header = jwt.get_unverified_header(token)
+        kid = unverified_header.get("kid", "")
+
+        # Step 2: fetch (or retrieve from cache) Supabase's public JWKS
+        jwks = _get_jwks()
+
+        # Step 3: find the right public key for this token
+        public_key = _find_key(jwks, kid)
+
+        # Step 4: fully verify the token (signature + expiry + audience)
+        # Supabase supports ES256 (ECC P-256, new default) and RS256.
+        # HS256 (legacy) is kept for backward compatibility with older projects.
         payload = jwt.decode(
-            credentials.credentials,
-            jwt_secret,
-            algorithms=["HS256"],
+            token,
+            public_key,
+            algorithms=["ES256", "RS256", "HS256"],
             audience="authenticated",
         )
         return payload
