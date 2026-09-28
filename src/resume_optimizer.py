@@ -5,6 +5,18 @@ from dotenv import load_dotenv
 load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
+RESUME_FORMAT_INSTRUCTIONS = """
+Format the resume using Markdown with this exact structure:
+- Use ## for the candidate's full name (only one ## heading)
+- Use a single line right below the name for contact info (email, phone, location, links) separated by " | "
+- Use ### for each section heading (e.g., ### Summary, ### Experience, ### Education, ### Skills, ### Certifications, ### Projects)
+- For each job/role, put the title and company on one line using bold: **Job Title | Company Name** followed by the dates on the same line in italics: *Start – End*
+- Use bullet points (- ) for responsibilities and achievements under each role
+- For the Skills section, list skills as a comma-separated line or grouped by category
+- Do NOT use ``` code blocks, do NOT use horizontal rules (---), and do NOT wrap output in any extra formatting
+- Return ONLY the formatted resume, no explanation or commentary
+"""
+
 def optimize_resume(resume_text, missing_skills):
     prompt = f"""
 You are a professional resume writer.
@@ -16,7 +28,7 @@ Missing Skills: {", ".join(missing_skills)}
 Resume:
 {resume_text}
 
-Return the improved resume text only, no explanation.
+{RESUME_FORMAT_INSTRUCTIONS}
 """
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
@@ -44,7 +56,7 @@ Job Description:
 Resume:
 {resume_text}
 
-Return the fully tailored resume text only. No explanation, no commentary.
+{RESUME_FORMAT_INSTRUCTIONS}
 """
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",

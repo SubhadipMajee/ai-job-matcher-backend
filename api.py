@@ -22,6 +22,9 @@ from src.tracker_store import (
     create_application, get_applications,
     update_application, delete_application,
 )
+from src.diff_engine import compute_diff, diff_summary
+from src.semantic_matcher import match_skills_semantic
+from src.interview_prep import generate_interview_prep
 
 app = FastAPI()
 
@@ -345,3 +348,51 @@ async def delete_tracker(
     """Remove an entry from the tracker."""
     delete_application(user["sub"], application_id)
     return {"status": "deleted"}
+
+
+# ── Feature 4: Better AI (Diff View, Semantic Match, Interview Prep) ─────────
+
+@app.post("/diff-resume")
+async def get_resume_diff(
+    original_text: str = Form(...),
+    tailored_text: str = Form(...),
+):
+    """
+    Compute structured line-by-line diff comparing original vs tailored resume.
+    Returns added, removed, and unchanged chunks plus summary stats.
+    """
+    chunks = compute_diff(original_text, tailored_text)
+    summary = diff_summary(chunks)
+    return {"diff": chunks, "summary": summary}
+
+
+@app.post("/semantic-match")
+async def get_semantic_match(
+    resume_skills: str = Form(...),
+    job_description: str = Form(...),
+    threshold: int = Form(50),
+):
+    """
+    Perform semantic skill matching via Groq LLM.
+    Handles related skills & synonyms (e.g. React ↔ frontend frameworks).
+    """
+    try:
+        skills = json.loads(resume_skills)
+    except Exception:
+        skills = [s.strip() for s in resume_skills.split(",") if s.strip()]
+
+    result = match_skills_semantic(skills, job_description, threshold=threshold)
+    return result
+
+
+@app.post("/interview-prep")
+async def get_interview_prep(
+    resume_text: str = Form(...),
+    job_description: str = Form(...),
+):
+    """
+    Generate customized interview preparation questions, behavioral questions,
+    and gap mitigation strategies tailored to the candidate's resume and job requirements.
+    """
+    result = generate_interview_prep(resume_text, job_description)
+    return result
