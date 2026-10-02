@@ -1,9 +1,4 @@
-import os
-from groq import Groq
-from dotenv import load_dotenv
-
-load_dotenv()
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+from src.ai_client import get_completion
 
 RESUME_FORMAT_INSTRUCTIONS = """
 Format the resume using Markdown with this exact structure:
@@ -16,6 +11,7 @@ Format the resume using Markdown with this exact structure:
 - Do NOT use ``` code blocks, do NOT use horizontal rules (---), and do NOT wrap output in any extra formatting
 - Return ONLY the formatted resume, no explanation or commentary
 """
+
 
 def optimize_resume(resume_text, missing_skills):
     prompt = f"""
@@ -30,11 +26,7 @@ Resume:
 
 {RESUME_FORMAT_INSTRUCTIONS}
 """
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[{"role": "user", "content": prompt}]
-    )
-    return response.choices[0].message.content.strip()
+    return get_completion([{"role": "user", "content": prompt}]).strip()
 
 
 def tailor_resume(resume_text, job_description):
@@ -58,8 +50,4 @@ Resume:
 
 {RESUME_FORMAT_INSTRUCTIONS}
 """
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[{"role": "user", "content": prompt}]
-    )
-    return response.choices[0].message.content.strip()
+    return get_completion([{"role": "user", "content": prompt}]).strip()

@@ -1,57 +1,15 @@
 """
 interview_prep.py — generates personalized interview questions, tips,
 and model answers based on the candidate's resume and target job description.
-
-Highlights questions addressing skill gaps between the candidate and the JD,
-along with behavioral and technical questions likely to be asked.
 """
 
 import time
-import os
-import json
-from groq import Groq
-from dotenv import load_dotenv
-
-load_dotenv()
-
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+from src.ai_client import get_completion, parse_json_safely
 
 
 def generate_interview_prep(resume_text: str, job_description: str) -> dict:
     """
     Generate tailored interview preparation material.
-
-    Parameters
-    ----------
-    resume_text     : Candidate's resume text
-    job_description : Target job description
-
-    Returns
-    -------
-    {
-        "technical_questions": [
-            {
-                "question": "...",
-                "context": "Why they ask this based on JD/Resume",
-                "sample_answer": "...",
-                "skills_tested": ["..."]
-            }
-        ],
-        "gap_questions": [
-            {
-                "gap": "Missing skill or experience",
-                "question": "How to answer when asked about this missing skill",
-                "strategy": "How to pivot/demonstrate quick learning"
-            }
-        ],
-        "behavioral_questions": [
-            {
-                "question": "...",
-                "star_tip": "Situation/Task/Action/Result guidance"
-            }
-        ],
-        "key_tips": ["...", "..."]
-    }
     """
     time.sleep(1)
 
@@ -95,22 +53,10 @@ Return ONLY a valid JSON object with exactly this schema (no markdown, no backti
 }}
 """
 
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[{"role": "user", "content": prompt}],
-    )
-
-    raw = response.choices[0].message.content.strip()
-
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
-        try:
-            return eval(raw)
-        except Exception:
-            return {
-                "technical_questions": [],
-                "gap_questions": [],
-                "behavioral_questions": [],
-                "key_tips": ["Failed to parse interview prep output."]
-            }
+    raw = get_completion([{"role": "user", "content": prompt}])
+    return parse_json_safely(raw, default={
+        "technical_questions": [],
+        "gap_questions": [],
+        "behavioral_questions": [],
+        "key_tips": ["Review core requirements and prepare concrete project anecdotes."]
+    })
