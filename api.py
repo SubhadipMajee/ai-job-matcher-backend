@@ -62,8 +62,29 @@ async def get_jobs(
     return {"jobs": jobs}
 
 @app.post("/match")
-async def get_match(resume_skills: str = Form(...), job_skills: str = Form(...)):
-    result = match_skills(json.loads(resume_skills), json.loads(job_skills))
+async def get_match(
+    resume_skills: str = Form(...),
+    job_skills: str | None = Form(None),
+    job_description: str | None = Form(None),
+):
+    try:
+        r_skills = json.loads(resume_skills)
+    except Exception:
+        r_skills = [s.strip() for s in resume_skills.split(",") if s.strip()]
+
+    if job_skills:
+        try:
+            j_skills = json.loads(job_skills)
+        except Exception:
+            j_skills = [s.strip() for s in job_skills.split(",") if s.strip()]
+    elif job_description:
+        j_skills = extract_skills(job_description, "job description")
+    else:
+        raise HTTPException(status_code=400, detail="Either job_skills or job_description must be provided")
+
+    result = match_skills(r_skills, j_skills)
+    result["match_score"] = result["score"]
+    result["job_skills"] = j_skills
     return result
 
 @app.post("/job-skills")

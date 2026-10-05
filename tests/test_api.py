@@ -102,6 +102,23 @@ def test_endpoint_match():
     data = response.json()
     assert data["score"] == 50.0
     assert "python" in data["matched_skills"]
+    assert data["match_score"] == 50.0
+
+
+def test_endpoint_match_with_job_description(monkeypatch):
+    monkeypatch.setattr("api.extract_skills", lambda desc, source: ["python", "react"])
+    response = client.post(
+        "/match",
+        data={
+            "resume_skills": '["Python", "FastAPI"]',
+            "job_description": "We need Python and React",
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["score"] == 50.0
+    assert "python" in data["matched_skills"]
+    assert data["match_score"] == 50.0
 
 
 def test_endpoint_diff_resume():
