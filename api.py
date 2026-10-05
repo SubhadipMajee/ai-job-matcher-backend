@@ -64,9 +64,23 @@ async def get_jobs(
     location: str = Form(""),
     job_type: str = Form(""),
     company_type: str = Form(""),
-    experience_level: str = Form("")
+    experience_level: str = Form(""),
+    resume_skills: str = Form("[]")
 ):
-    jobs = fetch_jobs(job_role, location, job_type, company_type, experience_level)
+    try:
+        parsed_skills = json.loads(resume_skills) if resume_skills else []
+        if not isinstance(parsed_skills, list):
+            parsed_skills = []
+    except Exception:
+        parsed_skills = []
+    jobs = fetch_jobs(
+        job_role,
+        location=location,
+        job_type=job_type,
+        company_type=company_type,
+        experience_level=experience_level,
+        resume_skills=parsed_skills
+    )
     return {"jobs": jobs}
 
 @app.post("/match")
