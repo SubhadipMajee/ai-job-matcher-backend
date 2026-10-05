@@ -21,13 +21,21 @@ def set_cached_jobs(cache_key: tuple, jobs: list):
     _job_cache[cache_key] = jobs
 
 
-def make_job_cache_key(job_role: str, location: str = "", job_type: str = "", company_type: str = "", num_results: int = 10) -> tuple:
+def make_job_cache_key(
+    job_role: str,
+    location: str = "",
+    job_type: str = "",
+    company_type: str = "",
+    experience_level: str = "",
+    num_results: int = 10
+) -> tuple:
     """Build a deterministic cache key tuple."""
     return (
         job_role.strip().lower(),
         location.strip().lower(),
         job_type.strip().lower(),
         company_type.strip().lower(),
+        experience_level.strip().lower(),
         num_results,
     )
 

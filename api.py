@@ -56,9 +56,10 @@ async def get_jobs(
     job_role: str = Form(...),
     location: str = Form(""),
     job_type: str = Form(""),
-    company_type: str = Form("")
+    company_type: str = Form(""),
+    experience_level: str = Form("")
 ):
-    jobs = fetch_jobs(job_role, location, job_type, company_type)
+    jobs = fetch_jobs(job_role, location, job_type, company_type, experience_level)
     return {"jobs": jobs}
 
 @app.post("/match")
